@@ -94,7 +94,7 @@ main()
 
 
 
-	for (;;) // loop forever
+	for (;;) // бесконечный цикл
 	{
 		WaitNextTimeSlice();
 		Delay_sec(0.01); //TIME IS VERY CRITICAL, GOING BEYOND THIS VALUE IS NOT RECOMMENDED 
