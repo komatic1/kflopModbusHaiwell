@@ -90,14 +90,14 @@ main()
 //************************************************************************
 
 //************************************************************************
-//THIS SECTION OF CODE LOOPS FOREVER, ANYTHING THAT IS TO ALWAYS WORK LIVES HERE
+//эта секция зациклена, все что выполняется всегда, должно быть здесь
 
 
 
 	for (;;) // бесконечный цикл
 	{
 		WaitNextTimeSlice();
-		Delay_sec(0.01); //TIME IS VERY CRITICAL, GOING BEYOND THIS VALUE IS NOT RECOMMENDED 
+		Delay_sec(0.01); //время очень критично, увеличение не рекомендовано
 
 		//************************************************************************
 		
@@ -171,13 +171,13 @@ void ModbusMaster_Init()
 	
 }
 
-char* strncpy(char *dst,char* src,int len)
-{
-	int i;
-	for (i=0;i<len;i++)
-		dst[i]=src[i];
-	return dst;
-}
+// char* strncpy(char *dst,char* src,int len)
+// {
+// 	int i;
+// 	for (i=0;i<len;i++)
+// 		dst[i]=src[i];
+// 	return dst;
+// }
 
 // marshal and move plc values 0-31 from PLC/Slave into MBRegisters to KFlop memory
 void ModbusMaster_RegUnload()
