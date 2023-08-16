@@ -9,7 +9,6 @@
 //STOP BITS=1
 //FLOW CONTROL=NONE
 
-
 #include "KMotionDef.h"
 #include "ModBusMaster.h"
 
