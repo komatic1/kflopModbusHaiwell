@@ -1,8 +1,9 @@
+// Код основан на коде:
 //PROGRAMMER: Alexander Savelev ryan.hollywood.in.flame@gmail.com
 //Creation Date: 13-03-2018
-//LASTEST EDIT DATE: 13-03-2018
+//LATEST EDIT DATE: 13-03-2018
 //PROGRAM FUNCTION:
-//HANDLE ALL SERIAL COMMINICATION BETWEEN KFLOP AND ZAHOR FX2N-30MR
+//HANDLE ALL SERIAL COMMINICATION BETWEEN KFLOP AND Haiwell
 //BAUD RATE=38400
 //DATA BITS=8 RTU MODE
 //PARITY=NONE
@@ -12,7 +13,6 @@
 #include "KMotionDef.h"
 #include "ModBusMaster.h"
 
-
 //************************************************************************
 //START - CODE FOR MODBUS RTU MASTER
 
@@ -20,10 +20,10 @@ unsigned short MBRegisters[N_MB_REGISTERS];
 
 
 
-// Constants
+// Константы
 int ModbusMaster_MaxRetry=3;
-double ModbusMaster_Timeout=0.5; //seconds for no response for a send command
-double ModbusMaster_ResponseTime; //seconds for last PLC response
+double ModbusMaster_Timeout=0.5; //секунды для сообщения - нет ответа - после команды send
+double ModbusMaster_ResponseTime; //секунды для последнего PLC ответа
 double ModbusMaster_CommandSentTime;
 
 // status and performance counters
