@@ -16,7 +16,7 @@
 //************************************************************************
 //START - CODE FOR MODBUS RTU MASTER
 
-unsigned short MBRegisters[N_MB_REGISTERS];
+unsigned short MBRegisters[N_MB_REGISTERS]; // размер массива 64 (полная длина 128 байт)
 
 
 
@@ -44,7 +44,6 @@ int ModbusMaster_Retry=0;
 double ModbusMaster_LastInTime=0;
 double ModbusMaster_EndOfPacketWait=3.5*10/9600; // wait 3.5 characters after a packet 9600=baud rate)
 //double ModbusMaster_EndOfPacketWait=3.5*10/38400; // wait 3.5 characters after a packet 9600=baud rate)
-//char ModbusMaster_packetBuild[256]; // max length of modbus frame
 char ModbusMaster_packetBuild[256]; // max length of modbus frame
 int ModbusMaster_packetSize=0;
 
@@ -160,6 +159,7 @@ void ModbusMaster_Init()
 	ModbusMaster_Idle=0;
 	ModbusMaster_SentPtr=&ModbusMaster_ConnectList[0];
 
+	// очистка всех 64 регистров
 	int c;
 	for (c=0;c<N_MB_REGISTERS;c++)
 		MBRegisters[c]=0;
@@ -181,20 +181,16 @@ void ModbusMaster_Init()
 // marshal and move plc values 0-31 from PLC/Slave into MBRegisters to KFlop memory
 void ModbusMaster_RegUnload()
 {
-	
 	int i;
 	int j;
-	
 	for (i=0; i<8; i++)
 		{
-		SetStateBit(48+i,(MBRegisters[2]>>i)&1);  
+		SetStateBit(48+i,(MBRegisters[2]>>i)&1); // 8 бит из 2го MB регистра в IO 48-55 
 	    }
-	    
  	for (j=0; j<8; j++)
 		 {
-			SetStateBit(56+j,(MBRegisters[3]>>j)&1); 
+			SetStateBit(56+j,(MBRegisters[3]>>j)&1); // 8 бит из 3го MB регистра в IO 56-63 
 		 }
-
 }
 
 
@@ -333,14 +329,10 @@ void ModbusMaster_Send(int verbose)
 		case 0xF:
 			ModbusMaster_RegLoad();
 			*chp++=ModbusMaster_packetBuild[5]*2;
-			//for (x=0;x<ModbusMaster_packetBuild[5];x++)
 			for (x=0;x<ModbusMaster_packetBuild[5];x++)
-			
 			{
-				
 				*chp++=MBRegisters[x+ModbusMaster_SentPtr->reg]&0xFF;
 				*chp++=(MBRegisters[x+ModbusMaster_SentPtr->reg]>>8)&0xFF;
-
 			}
 			break;
 		case 0x02:	// RO Read

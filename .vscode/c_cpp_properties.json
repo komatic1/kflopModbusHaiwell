@@ -12,7 +12,7 @@
             ],
             "compilerPath": "C:\\Program Files (x86)\\SKTOOL7.0\\Marco\\X86\\bin\\gcc.exe",
             "cStandard": "c99",
-            "intelliSenseMode": "windows-msvc-x64"
+            "intelliSenseMode": "windows-clang-x64"
         }
     ],
     "version": 4
