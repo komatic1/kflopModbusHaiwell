@@ -113,7 +113,8 @@ ModbusMaster_Cmds ModbusMaster_MonitorList[] =
 
 		// WRITE OUTPUTS
 		{"\x01\x0F\x08\x10\x00\x0E", 6, 0}, // M16-M29 plc markers
-											// READ INPUTS
+
+		// READ INPUTS
 		{"\x01\x01\x08\x00\x00\x10", 6, 2},
 
 		{0, 0, 0} // end flag
