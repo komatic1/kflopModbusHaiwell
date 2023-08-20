@@ -11,11 +11,26 @@
 // PARITY=NONE
 // STOP BITS=1
 // FLOW CONTROL=NONE
+// KFLOP modbus to Haiwell plc
+// PROGRAMMER: komatic
+// Based on code:
+// PROGRAMMER: Alexander Savelev ryan.hollywood.in.flame@gmail.com
+// Creation Date: 13-03-2018
+// LATEST EDIT DATE: 13-03-2018
+// PROGRAM FUNCTION:
+// HANDLE ALL SERIAL COMMINICATION BETWEEN KFLOP AND Haiwell
+// BAUD RATE=38400
+// DATA BITS=8 RTU MODE
+// PARITY=NONE
+// STOP BITS=1
+// FLOW CONTROL=NONE
 
 #include "KMotionDef.h"
 #include "ModbusMaster.h"
+#include "ModbusMaster.h"
 
 //************************************************************************
+// START - CODE FOR MODBUS RTU MASTER
 // START - CODE FOR MODBUS RTU MASTER
 unsigned short MBRegisters[N_MB_REGISTERS]; // размер массива 64 (полная длина 128 байт)
 
@@ -23,9 +38,17 @@ unsigned short MBRegisters[N_MB_REGISTERS]; // размер массива 64 (�
 int ModbusMaster_MaxRetry = 3;	   // максимальное колличество повторов
 double ModbusMaster_Timeout = 0.5; // секунды для сообщения - нет ответа - после команды send
 double ModbusMaster_ResponseTime;  // секунды для последнего PLC ответа
+int ModbusMaster_MaxRetry = 3;	   // максимальное колличество повторов
+double ModbusMaster_Timeout = 0.5; // секунды для сообщения - нет ответа - после команды send
+double ModbusMaster_ResponseTime;  // секунды для последнего PLC ответа
 double ModbusMaster_CommandSentTime;
 
 // status and performance counters
+double ModbusMaster_MonitorStartTime = 0; // start of most recent monitor cycle
+double ModbusMaster_MonitorCycleTime = 0; // seconds to call all commands in Monitor list
+int ModbusMaster_TallyConnections = 0;	  // Number of times Connection list has been sent
+int ModbusMaster_TallyCommands = 0;		  // Commands since connection
+int ModbusMaster_TallyRetries = 0;		  // Retries since connection
 double ModbusMaster_MonitorStartTime = 0; // start of most recent monitor cycle
 double ModbusMaster_MonitorCycleTime = 0; // seconds to call all commands in Monitor list
 int ModbusMaster_TallyConnections = 0;	  // Number of times Connection list has been sent
@@ -39,7 +62,18 @@ int ModbusMaster_MonitorIndex = 0;
 int ModbusMaster_ConnectIndex = 0;
 int ModbusMaster_Idle = 0; // 0=idle, 1=await reply
 int ModbusMaster_Retry = 0;
+int ModbusMaster_List = 0; // 0=connect, 1=monitor
+int ModbusMaster_Connected = 0;
+int ModbusMaster_MonitorIndex = 0;
+int ModbusMaster_ConnectIndex = 0;
+int ModbusMaster_Idle = 0; // 0=idle, 1=await reply
+int ModbusMaster_Retry = 0;
 
+double ModbusMaster_LastInTime = 0;
+double ModbusMaster_EndOfPacketWait = 3.5 * 10 / 9600; // wait 3.5 characters after a packet 9600=baud rate)
+// double ModbusMaster_EndOfPacketWait=3.5*10/38400; // wait 3.5 characters after a packet 9600=baud rate)
+char ModbusMaster_packetBuild[256]; // максимальная длина modbus пакета
+int ModbusMaster_packetSize = 0;
 double ModbusMaster_LastInTime = 0;
 double ModbusMaster_EndOfPacketWait = 3.5 * 10 / 9600; // wait 3.5 characters after a packet 9600=baud rate)
 // double ModbusMaster_EndOfPacketWait=3.5*10/38400; // wait 3.5 characters after a packet 9600=baud rate)
@@ -51,6 +85,8 @@ typedef enum
 	MBERROR_NONE = 0,
 	// Modbus codes; reported with Modbus error packet
 	MBERROR_ILLEGAL_FUNCTION = 1,
+	MBERROR_ILLEGAL_DATA_ADDRESS = 2, // used
+	MBERROR_ILLEGAL_DATA_VALUE = 3,	  // used
 	MBERROR_ILLEGAL_DATA_ADDRESS = 2, // used
 	MBERROR_ILLEGAL_DATA_VALUE = 3,	  // used
 	MBERROR_SLAVE_DEVICE_FAILURE = 4,
@@ -65,11 +101,14 @@ typedef enum
 } MBErrors;
 
 // END - CODE FOR MODBUS RTU MASTER
+// END - CODE FOR MODBUS RTU MASTER
 //************************************************************************
 
 main()
 {
 	ModbusMaster_Init();
+	int reportsecs = 20;
+	double starttime;
 	int reportsecs = 20;
 	double starttime;
 
@@ -78,22 +117,32 @@ main()
 	int TallyConnections = 0;	 // Number of times Connection list has been sent
 	int TallyCommands = 0;		 // Commands since connection
 	int TallyRetries = 0;		 // Retries since connection
+	double MonitorStartTime = 0; // start of most recent monitor cycle
+	double MonitorCycleTime = 0; // seconds to call all commands in Monitor list
+	int TallyConnections = 0;	 // Number of times Connection list has been sent
+	int TallyCommands = 0;		 // Commands since connection
+	int TallyRetries = 0;		 // Retries since connection
 
+	starttime = Time_sec();
+	TallyCommands = ModbusMaster_TallyCommands;
 	starttime = Time_sec();
 	TallyCommands = ModbusMaster_TallyCommands;
 
 	for (;;)
-	{
-		WaitNextTimeSlice();
-		Delay_sec(0.01); // время очень критично, увеличение не рекомендовано
+		for (;;)
+		{
+			WaitNextTimeSlice();
+			Delay_sec(0.01); // время очень критично, увеличение не рекомендовано
 
-		ModbusMaster_Loop();
-	}
+			ModbusMaster_Loop();
+		}
 }
 
 typedef struct ModbusMaster_sCmds
 {
 	char *start; // has "dev,cmd,adrhi,adrlo,lenhi,lenlo" bytes of modbus command. Not data and Not checksum.
+	int len;	 // length of start string. commonly 6
+	int reg;	 // reg# is the start index into the MBRegisters array for the command
 	int len;	 // length of start string. commonly 6
 	int reg;	 // reg# is the start index into the MBRegisters array for the command
 } ModbusMaster_Cmds;
@@ -105,20 +154,26 @@ ModbusMaster_Cmds ModbusMaster_ConnectList[] =
 		// string is "dev,cmd,adrhi,adrlo,lenhi,lenlo" bytes of modbus command. bytelen, data, and checksum are added.
 		//{"\x01\x04\xF0\x00\x00\x10", 6, 2},	// Collect PLC firmware info block MBRegisters[10] for 16 registers
 		{0, 0, 0} // end flag
-};
+		{
+			// string is "dev,cmd,adrhi,adrlo,lenhi,lenlo" bytes of modbus command. bytelen, data, and checksum are added.
+			//{"\x01\x04\xF0\x00\x00\x10", 6, 2},	// Collect PLC firmware info block MBRegisters[10] for 16 registers
+			{0, 0, 0} // end flag
+		};
 
 ModbusMaster_Cmds ModbusMaster_MonitorList[] =
 	{
 		// string is "dev,cmd,adrhi,adrlo,lenhi,lenlo" bytes of modbus command. bytelen, data, and checksum are added as necessary.
+		{
+			// string is "dev,cmd,adrhi,adrlo,lenhi,lenlo" bytes of modbus command. bytelen, data, and checksum are added as necessary.
 
-		// WRITE OUTPUTS
-		{"\x01\x0F\x08\x10\x00\x0E", 6, 0}, // M16-M29 plc markers
+			// WRITE OUTPUTS
+			{"\x01\x0F\x08\x10\x00\x0E", 6, 0}, // M16-M29 plc markers
 
-		// READ INPUTS
-		{"\x01\x01\x08\x00\x00\x10", 6, 2},
+			// READ INPUTS
+			{"\x01\x01\x08\x00\x00\x10", 6, 2},
 
-		{0, 0, 0} // end flag
-};
+			{0, 0, 0} // end flag
+		};
 
 void ModbusMaster_Init()
 {
@@ -128,7 +183,13 @@ void ModbusMaster_Init()
 	ModbusMaster_LastInTime = Time_sec();
 	ModbusMaster_EndOfPacketWait = 3.5 * 10.0 / 38400; // wait 3.5 characters after a packet
 	ModbusMaster_packetSize = 0;
+	DoRS232Cmds = FALSE; // turn off processing RS232 input as commands
+	ModbusMaster_LastInTime = Time_sec();
+	ModbusMaster_EndOfPacketWait = 3.5 * 10.0 / 38400; // wait 3.5 characters after a packet
+	ModbusMaster_packetSize = 0;
 
+	ModbusMaster_Idle = 0;
+	ModbusMaster_SentPtr = &ModbusMaster_ConnectList[0];
 	ModbusMaster_Idle = 0;
 	ModbusMaster_SentPtr = &ModbusMaster_ConnectList[0];
 
@@ -136,8 +197,12 @@ void ModbusMaster_Init()
 	int c;
 	for (c = 0; c < N_MB_REGISTERS; c++)
 		MBRegisters[c] = 0;
+	for (c = 0; c < N_MB_REGISTERS; c++)
+		MBRegisters[c] = 0;
 
 	// make the register static arrays available to the other threads
+	persist.UserData[PERSIST_MBREG_BLOCK_ADR] = (int)MBRegisters;
+	// printf("persist.UserData[%d]<=%u\n",PERSIST_MBREG_BLOCK_ADR,MBRegisters); //debug
 	persist.UserData[PERSIST_MBREG_BLOCK_ADR] = (int)MBRegisters;
 	// printf("persist.UserData[%d]<=%u\n",PERSIST_MBREG_BLOCK_ADR,MBRegisters); //debug
 }
@@ -163,11 +228,22 @@ void ModbusMaster_RegUnload()
 	{
 		SetStateBit(56 + j, (MBRegisters[3] >> j) & 1); // 8 бит из 3го MB регистра в IO 56-63
 	}
+	for (i = 0; i < 8; i++)
+	{
+		SetStateBit(48 + i, (MBRegisters[2] >> i) & 1); // 8 бит из 2го MB регистра в IO 48-55
+	}
+	for (j = 0; j < 8; j++)
+	{
+		SetStateBit(56 + j, (MBRegisters[3] >> j) & 1); // 8 бит из 3го MB регистра в IO 56-63
+	}
 }
 
 // marshal and move virtual bits from KFLOP to PLC/Slave via MBRegisters
 void ModbusMaster_RegLoad()
 {
+
+	MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
+	MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
 
 	MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
 	MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
@@ -192,6 +268,9 @@ static unsigned char auchCRCHi[] = {
 	0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
 	0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
 	0x40};
+0x40
+}
+;
 
 static char auchCRCLo[] = {
 	0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x07, 0xC7, 0x05, 0xC5, 0xC4,
@@ -212,18 +291,23 @@ static char auchCRCLo[] = {
 	0x48, 0x49, 0x89, 0x4B, 0x8B, 0x8A, 0x4A, 0x4E, 0x8E, 0x8F, 0x4F, 0x8D, 0x4D, 0x4C, 0x8C,
 	0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46, 0x86, 0x82, 0x42, 0x43, 0x83, 0x41, 0x81, 0x80,
 	0x40};
+0x40
+}
+;
 
-unsigned short CRC16(unsigned char *puchMsg, unsigned short usDataLen)
+unsigned short CRC16(unsigned char *puchMsg, unsigned short usDataLen) unsigned short CRC16(unsigned char *puchMsg, unsigned short usDataLen)
 {
 	unsigned char uchCRCHi = 0xff;
 	unsigned char uchCRCLo = 0xff;
 	unsigned int uIndex;
 	while (usDataLen--)
-	{
-		uIndex = uchCRCLo ^ *puchMsg++;
-		uchCRCLo = uchCRCHi ^ auchCRCHi[uIndex];
-		uchCRCHi = auchCRCLo[uIndex];
-	}
+		while (usDataLen--)
+		{
+			uIndex = uchCRCLo ^ *puchMsg++;
+			uchCRCLo = uchCRCHi ^ auchCRCHi[uIndex];
+			uchCRCHi = auchCRCLo[uIndex];
+		}
+	return (uchCRCHi << 8 | uchCRCLo);
 	return (uchCRCHi << 8 | uchCRCLo);
 }
 
@@ -233,15 +317,23 @@ void ModbusMaster_NextCmd(MBErrors ecode)
 		printf("ModbusMaster_NextCmd(%d)\n", ecode); // debug
 	ModbusMaster_Idle = 0;							 // ready to send a new command
 	if (INTERROR_TIMEOUT == ecode)
+		if (ecode)
+			printf("ModbusMaster_NextCmd(%d)\n", ecode); // debug
+	ModbusMaster_Idle = 0;								 // ready to send a new command
+	if (INTERROR_TIMEOUT == ecode)
 	{
 		if (ModbusMaster_List)
 			ModbusMaster_Connected = 0;
+		ModbusMaster_Connected = 0;
 	}
 	if (ModbusMaster_List)
 	{
 		ModbusMaster_MonitorIndex++;
 		if (!ModbusMaster_MonitorList[ModbusMaster_MonitorIndex].start)
 		{
+			ModbusMaster_MonitorIndex = 0;
+			ModbusMaster_MonitorCycleTime = Time_sec() - ModbusMaster_MonitorStartTime;
+			ModbusMaster_MonitorStartTime = Time_sec();
 			ModbusMaster_MonitorIndex = 0;
 			ModbusMaster_MonitorCycleTime = Time_sec() - ModbusMaster_MonitorStartTime;
 			ModbusMaster_MonitorStartTime = Time_sec();
@@ -252,27 +344,36 @@ void ModbusMaster_NextCmd(MBErrors ecode)
 		ModbusMaster_ConnectIndex++;
 		if (!ModbusMaster_ConnectList[ModbusMaster_ConnectIndex].start)
 			ModbusMaster_List = 1; // continue monitor list, do not restart here
+		ModbusMaster_List = 1;	   // continue monitor list, do not restart here
 	}
 	if (INTERROR_TIMEOUT != ecode && 0 == ModbusMaster_Connected)
-	{
-		ModbusMaster_Connected = 1;
-		ModbusMaster_List = 0;
-		ModbusMaster_ConnectIndex = 0;
+		if (INTERROR_TIMEOUT != ecode && 0 == ModbusMaster_Connected)
+		{
+			ModbusMaster_Connected = 1;
+			ModbusMaster_List = 0;
+			ModbusMaster_ConnectIndex = 0;
+			ModbusMaster_Connected = 1;
+			ModbusMaster_List = 0;
+			ModbusMaster_ConnectIndex = 0;
 
-		ModbusMaster_TallyConnections++;
-		ModbusMaster_TallyCommands = 0;
-		ModbusMaster_TallyRetries = 0;
-	}
+			ModbusMaster_TallyConnections++;
+			ModbusMaster_TallyCommands = 0;
+			ModbusMaster_TallyRetries = 0;
+			ModbusMaster_TallyCommands = 0;
+			ModbusMaster_TallyRetries = 0;
+		}
 
 	if (!ModbusMaster_List)
 		ModbusMaster_SentPtr = &ModbusMaster_ConnectList[ModbusMaster_ConnectIndex];
-	else
-		ModbusMaster_SentPtr = &ModbusMaster_MonitorList[ModbusMaster_MonitorIndex];
+	ModbusMaster_SentPtr = &ModbusMaster_ConnectList[ModbusMaster_ConnectIndex];
+	else ModbusMaster_SentPtr = &ModbusMaster_MonitorList[ModbusMaster_MonitorIndex];
+	ModbusMaster_SentPtr = &ModbusMaster_MonitorList[ModbusMaster_MonitorIndex];
 }
 
 void ModbusMaster_Send(int verbose)
 {
 	// send the command currently pointed to by ModbusMaster_SentPtr
+	printf("ModbusMaster_Send(%d)\n", verbose);
 	printf("ModbusMaster_Send(%d)\n", verbose);
 
 	char *chp;
@@ -282,163 +383,243 @@ void ModbusMaster_Send(int verbose)
 	if (!ModbusMaster_List)
 		printf("List:%d ConnectIndex:%d MonitorIndex:%d\n",
 			   ModbusMaster_List, ModbusMaster_ConnectIndex, ModbusMaster_MonitorIndex);
+			   ModbusMaster_List, ModbusMaster_ConnectIndex, ModbusMaster_MonitorIndex);
 
-	if (!ModbusMaster_SentPtr->start)
-	{
-		printf("ModbusMaster_Send: Tried to execute at end list\n");
-		ModbusMaster_NextCmd(MBERROR_NONE);
-	}
+			   if (!ModbusMaster_SentPtr->start)
+			   {
+				   printf("ModbusMaster_Send: Tried to execute at end list\n");
+				   ModbusMaster_NextCmd(MBERROR_NONE);
+			   }
 
-	strncpy(ModbusMaster_packetBuild, ModbusMaster_SentPtr->start, ModbusMaster_SentPtr->len);
-	chp = &ModbusMaster_packetBuild[ModbusMaster_SentPtr->len];
-	switch (ModbusMaster_packetBuild[1])
-	{
-	case 0x10: // RW Write
-	case 0xF:
-		ModbusMaster_RegLoad();
-		*chp++ = ModbusMaster_packetBuild[5] * 2;
-		for (x = 0; x < ModbusMaster_packetBuild[5]; x++)
-		{
-			*chp++ = MBRegisters[x + ModbusMaster_SentPtr->reg] & 0xFF;
-			*chp++ = (MBRegisters[x + ModbusMaster_SentPtr->reg] >> 8) & 0xFF;
-		}
-		break;
-	case 0x02: // RO Read
-	case 0x03: // RO Read
-	case 0x04: // RW Read
-		break;
-	default:
-		printf("Unexpected default: ModbusMaster_Send(), Function %d\n", ModbusMaster_packetBuild[1]); // debug
-		break;
-	}
-	int csum = CRC16(ModbusMaster_packetBuild, chp - ModbusMaster_packetBuild);
-	*chp++ = csum & 0xFF;
-	*chp++ = (csum >> 8) & 0xFF;
+			   strncpy(ModbusMaster_packetBuild, ModbusMaster_SentPtr->start, ModbusMaster_SentPtr->len);
+			   chp = &ModbusMaster_packetBuild[ModbusMaster_SentPtr->len];
+			   switch (ModbusMaster_packetBuild[1])
+				   strncpy(ModbusMaster_packetBuild, ModbusMaster_SentPtr->start, ModbusMaster_SentPtr->len);
+			   chp = &ModbusMaster_packetBuild[ModbusMaster_SentPtr->len];
+			   switch (ModbusMaster_packetBuild[1])
+			   {
+			   case 0x10: // RW Write
+			   case 0xF:
+				   ModbusMaster_RegLoad();
+				   *chp++ = ModbusMaster_packetBuild[5] * 2;
+				   for (x = 0; x < ModbusMaster_packetBuild[5]; x++)
+				   {
+					   *chp++ = MBRegisters[x + ModbusMaster_SentPtr->reg] & 0xFF;
+					   *chp++ = (MBRegisters[x + ModbusMaster_SentPtr->reg] >> 8) & 0xFF;
+				   }
+				   break;
+			   case 0x02: // RO Read
+			   case 0x03: // RO Read
+			   case 0x04: // RW Read
+				   break;
+			   default:
+				   printf("Unexpected default: ModbusMaster_Send(), Function %d\n", ModbusMaster_packetBuild[1]); // debug
+				   break;
+			   case 0x10: // RW Write
+			   case 0xF:
+				   ModbusMaster_RegLoad();
+				   *chp++ = ModbusMaster_packetBuild[5] * 2;
+				   for (x = 0; x < ModbusMaster_packetBuild[5]; x++)
+				   {
+					   *chp++ = MBRegisters[x + ModbusMaster_SentPtr->reg] & 0xFF;
+					   *chp++ = (MBRegisters[x + ModbusMaster_SentPtr->reg] >> 8) & 0xFF;
+				   }
+				   break;
+			   case 0x02: // RO Read
+			   case 0x03: // RO Read
+			   case 0x04: // RW Read
+				   break;
+			   default:
+				   printf("Unexpected default: ModbusMaster_Send(), Function %d\n", ModbusMaster_packetBuild[1]); // debug
+				   break;
+			   }
+			   int csum = CRC16(ModbusMaster_packetBuild, chp - ModbusMaster_packetBuild);
+			   *chp++ = csum & 0xFF;
+			   *chp++ = (csum >> 8) & 0xFF;
+			   int csum = CRC16(ModbusMaster_packetBuild, chp - ModbusMaster_packetBuild);
+			   *chp++ = csum & 0xFF;
+			   *chp++ = (csum >> 8) & 0xFF;
 
-	if (verbose)
-		printf("Tx:"); // debug
-	for (xp = ModbusMaster_packetBuild; xp < chp; xp++)
-	{
-		RS232_PutChar(*xp);
-		if (verbose)
-			printf("%02x;", *xp); // debug
-	}
-	if (verbose)
-		printf("\n"); // debug
+			   if (verbose)
+				   printf("Tx:"); // debug
+			   for (xp = ModbusMaster_packetBuild; xp < chp; xp++)
+				   if (verbose)
+					   printf("Tx:"); // debug
+			   for (xp = ModbusMaster_packetBuild; xp < chp; xp++)
+			   {
+				   RS232_PutChar(*xp);
+				   if (verbose)
+					   printf("%02x;", *xp); // debug
+				   if (verbose)
+					   printf("%02x;", *xp); // debug
+			   }
+			   if (verbose)
+				   printf("\n"); // debug
+			   if (verbose)
+				   printf("\n"); // debug
 
-	ModbusMaster_LastInTime = Time_sec();
-	ModbusMaster_Idle = 1;
+			   ModbusMaster_LastInTime = Time_sec();
+			   ModbusMaster_Idle = 1;
+			   ModbusMaster_LastInTime = Time_sec();
+			   ModbusMaster_Idle = 1;
 }
 
 MBErrors Process_Data(unsigned char *Buffer, unsigned char Count)
 {
-	int regndx;
-	int cnt;
-	int x;
-	unsigned short CRC = (((Buffer[Count - 1] << 8) & 0xFF00) | (Buffer[Count - 2] & 0xFF)); // Received CRC
-	unsigned short Recalculated_CRC = CRC16(Buffer, Count - 2);								 // Computed CRC
-	if (Recalculated_CRC != CRC)
-	{
-		printf("Count %d\n", Count);
-		printf("Checksum: Theirs:%04X Mine:%04X, %d chars\n", CRC, Recalculated_CRC, Count); // debug
-		return INTERROR_CHECKSUM;
-	}
+			   int regndx;
+			   int cnt;
+			   int x;
+			   unsigned short CRC = (((Buffer[Count - 1] << 8) & 0xFF00) | (Buffer[Count - 2] & 0xFF)); // Received CRC
+			   unsigned short Recalculated_CRC = CRC16(Buffer, Count - 2);								// Computed CRC
+			   if (Recalculated_CRC != CRC)
+				   unsigned short CRC = (((Buffer[Count - 1] << 8) & 0xFF00) | (Buffer[Count - 2] & 0xFF)); // Received CRC
+			   unsigned short Recalculated_CRC = CRC16(Buffer, Count - 2);									// Computed CRC
+			   if (Recalculated_CRC != CRC)
+			   {
+				   printf("Count %d\n", Count);
+				   printf("Checksum: Theirs:%04X Mine:%04X, %d chars\n", CRC, Recalculated_CRC, Count); // debug
+				   printf("Count %d\n", Count);
+				   printf("Checksum: Theirs:%04X Mine:%04X, %d chars\n", CRC, Recalculated_CRC, Count); // debug
+				   return INTERROR_CHECKSUM;
+			   }
 
-	// printf("Packet %d\n",CRC);    //debug
+			   // printf("Packet %d\n",CRC);    //debug
+			   // printf("Packet %d\n",CRC);    //debug
 
-	switch (Buffer[1])
-	{
-	case 0x02: // RO Read
-	case 0x03:
-	case 0x01:
-		regndx = ModbusMaster_SentPtr->reg;
+			   switch (Buffer[1])
+				   switch (Buffer[1])
+				   {
+				   case 0x02: // RO Read
+				   case 0x03:
+				   case 0x01:
+					   regndx = ModbusMaster_SentPtr->reg;
 
-		cnt = Buffer[2];
-		for (x = 0; x < cnt; x += 2)
-			// MBRegisters[regndx++]=((Buffer[3+x]<<8)&0xFF00)|(Buffer[4+x]&0x00FF);
-			MBRegisters[regndx++] = ((Buffer[4 + x] << 8) & 0xFF00) | (Buffer[3 + x] & 0x00FF); // CORRECTION MADE BY TK
-		ModbusMaster_RegUnload();
-		break;
-	case 0x10:
-	case 0xF:
-		// no action on successful write
-		break;
-	default:
-		printf("Unexpected default: Process_Data(), Buffer[1]=%d\n", Buffer[1]);
-		break;
-	}
+					   cnt = Buffer[2];
+					   for (x = 0; x < cnt; x += 2)
+						   // MBRegisters[regndx++]=((Buffer[3+x]<<8)&0xFF00)|(Buffer[4+x]&0x00FF);
+						   MBRegisters[regndx++] = ((Buffer[4 + x] << 8) & 0xFF00) | (Buffer[3 + x] & 0x00FF); // CORRECTION MADE BY TK
+					   ModbusMaster_RegUnload();
+					   break;
+				   case 0x10:
+				   case 0xF:
+					   // no action on successful write
+					   break;
+				   default:
+					   printf("Unexpected default: Process_Data(), Buffer[1]=%d\n", Buffer[1]);
+					   break;
+				   case 0x02: // RO Read
+				   case 0x03:
+				   case 0x01:
+					   regndx = ModbusMaster_SentPtr->reg;
 
-	return MBERROR_NONE; // We made it to the end, return
+					   cnt = Buffer[2];
+					   for (x = 0; x < cnt; x += 2)
+						   // MBRegisters[regndx++]=((Buffer[3+x]<<8)&0xFF00)|(Buffer[4+x]&0x00FF);
+						   MBRegisters[regndx++] = ((Buffer[4 + x] << 8) & 0xFF00) | (Buffer[3 + x] & 0x00FF); // CORRECTION MADE BY TK
+					   ModbusMaster_RegUnload();
+					   break;
+				   case 0x10:
+				   case 0xF:
+					   // no action on successful write
+					   break;
+				   default:
+					   printf("Unexpected default: Process_Data(), Buffer[1]=%d\n", Buffer[1]);
+					   break;
+				   }
+
+			   return MBERROR_NONE; // We made it to the end, return
+			   return MBERROR_NONE; // We made it to the end, return
 }
 
 void ModbusMaster_Monitor()
 {
-	char c;
+			   char c;
 
-	if (pRS232RecIn != pRS232RecOut)
-	{
-		ModbusMaster_LastInTime = Time_sec();
-		while (pRS232RecIn != pRS232RecOut) // data in buffer
-		{
-			c = RS232_GetChar();
-			if (ModbusMaster_packetSize < 255)
-				ModbusMaster_packetBuild[ModbusMaster_packetSize++] = c;
-			// printf("%02x\n,",c&0xFF); //debug
-		}
-	}
-	else
-	{
-		if (ModbusMaster_LastInTime + ModbusMaster_EndOfPacketWait < Time_sec() && ModbusMaster_packetSize)
-		{
-			int rtrn = Process_Data(ModbusMaster_packetBuild, ModbusMaster_packetSize);
-			ModbusMaster_packetSize = 0; // ready for next packet
-			if (!rtrn)
-			{
-				ModbusMaster_TallyCommands++;
-				ModbusMaster_NextCmd(rtrn);
-				return;
-			}
-			printf("Error=%d, %f\n", rtrn, ModbusMaster_LastInTime + ModbusMaster_EndOfPacketWait - Time_sec()); // debug
-																												 // d printf("\n",c);	//debug
-		}
-		if (ModbusMaster_LastInTime + ModbusMaster_Timeout < Time_sec()) // retry test
-		{
-			ModbusMaster_Retry++;
-			ModbusMaster_TallyRetries++;
-			printf("ModbusMaster_Retry:%d\n", ModbusMaster_Retry); // debug
-			if (ModbusMaster_Retry > ModbusMaster_MaxRetry)
-			{
-				printf("Failed Monitor message %d\n", ModbusMaster_MonitorIndex); // debug
-				ModbusMaster_ConnectIndex = 0;									  // reset connection
-				ModbusMaster_NextCmd(INTERROR_TIMEOUT);
-			}
-			else
-			{
-				ModbusMaster_Send(1);
-			}
-		}
-	}
+			   if (pRS232RecIn != pRS232RecOut)
+			   {
+				   ModbusMaster_LastInTime = Time_sec();
+				   ModbusMaster_LastInTime = Time_sec();
+				   while (pRS232RecIn != pRS232RecOut) // data in buffer
+				   {
+					   c = RS232_GetChar();
+					   if (ModbusMaster_packetSize < 255)
+						   ModbusMaster_packetBuild[ModbusMaster_packetSize++] = c;
+					   // printf("%02x\n,",c&0xFF); //debug
+					   c = RS232_GetChar();
+					   if (ModbusMaster_packetSize < 255)
+						   ModbusMaster_packetBuild[ModbusMaster_packetSize++] = c;
+					   // printf("%02x\n,",c&0xFF); //debug
+				   }
+			   }
+			   else
+			   {
+				   if (ModbusMaster_LastInTime + ModbusMaster_EndOfPacketWait < Time_sec() && ModbusMaster_packetSize)
+					   if (ModbusMaster_LastInTime + ModbusMaster_EndOfPacketWait < Time_sec() && ModbusMaster_packetSize)
+					   {
+						   int rtrn = Process_Data(ModbusMaster_packetBuild, ModbusMaster_packetSize);
+						   ModbusMaster_packetSize = 0; // ready for next packet
+						   int rtrn = Process_Data(ModbusMaster_packetBuild, ModbusMaster_packetSize);
+						   ModbusMaster_packetSize = 0; // ready for next packet
+						   if (!rtrn)
+						   {
+							   ModbusMaster_TallyCommands++;
+							   ModbusMaster_NextCmd(rtrn);
+							   return;
+						   }
+						   printf("Error=%d, %f\n", rtrn, ModbusMaster_LastInTime + ModbusMaster_EndOfPacketWait - Time_sec()); // debug
+																																// d printf("\n",c);	//debug
+						   printf("Error=%d, %f\n", rtrn, ModbusMaster_LastInTime + ModbusMaster_EndOfPacketWait - Time_sec()); // debug
+																																// d printf("\n",c);	//debug
+					   }
+				   if (ModbusMaster_LastInTime + ModbusMaster_Timeout < Time_sec())		// retry test
+					   if (ModbusMaster_LastInTime + ModbusMaster_Timeout < Time_sec()) // retry test
+					   {
+						   ModbusMaster_Retry++;
+						   ModbusMaster_TallyRetries++;
+						   printf("ModbusMaster_Retry:%d\n", ModbusMaster_Retry); // debug
+						   if (ModbusMaster_Retry > ModbusMaster_MaxRetry)
+							   printf("ModbusMaster_Retry:%d\n", ModbusMaster_Retry); // debug
+						   if (ModbusMaster_Retry > ModbusMaster_MaxRetry)
+						   {
+							   printf("Failed Monitor message %d\n", ModbusMaster_MonitorIndex); // debug
+							   ModbusMaster_ConnectIndex = 0;									 // reset connection
+							   printf("Failed Monitor message %d\n", ModbusMaster_MonitorIndex); // debug
+							   ModbusMaster_ConnectIndex = 0;									 // reset connection
+							   ModbusMaster_NextCmd(INTERROR_TIMEOUT);
+						   }
+						   else
+						   {
+							   ModbusMaster_Send(1);
+						   }
+					   }
+			   }
 }
 
 void ModbusMaster_Loop()
 {
-	// d printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n",ModbusMaster_Idle); //debug
-	if (!ModbusMaster_Idle)
-	{
-		int x;
-		// if (ModbusMaster_LastInTime+ModbusMaster_EndOfPacketWait>Time_sec())
-		//	;
-		// printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n",ModbusMaster_Idle); //debug
-		ModbusMaster_Send(0);
-		/*for (x=0;x<16;x++)
-		{
-			printf("%04d ",(unsigned)MBRegisters[x]);
-			if ((x&7)==7) printf("\n");
-		}*/
-		ModbusMaster_Retry = 0;
-	}
-	else
-		ModbusMaster_Monitor();
+			   // d printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n",ModbusMaster_Idle); //debug
+			   if (!ModbusMaster_Idle)
+				   // d printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n",ModbusMaster_Idle); //debug
+				   if (!ModbusMaster_Idle)
+				   {
+					   int x;
+					   // if (ModbusMaster_LastInTime+ModbusMaster_EndOfPacketWait>Time_sec())
+					   // if (ModbusMaster_LastInTime+ModbusMaster_EndOfPacketWait>Time_sec())
+					   //	;
+					   // printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n",ModbusMaster_Idle); //debug
+					   // printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n",ModbusMaster_Idle); //debug
+					   ModbusMaster_Send(0);
+					   /*for (x=0;x<16;x++)
+					   {
+						   printf("%04d ",(unsigned)MBRegisters[x]);
+						   if ((x&7)==7) printf("\n");
+					   }*/
+					   ModbusMaster_Retry = 0;
+					   ModbusMaster_Retry = 0;
+				   }
+				   else
+					   ModbusMaster_Monitor();
 }
+// END MODBUS FUNCTION BLOCKS
 // END MODBUS FUNCTION BLOCKS
 //************************************************************************
