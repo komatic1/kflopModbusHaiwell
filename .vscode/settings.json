@@ -1,5 +1,6 @@
 {
   "files.associations": {
     "modbusmaster.h": "c"
-  }
+  },
+  "cSpell.words": ["Haiwell"]
 }

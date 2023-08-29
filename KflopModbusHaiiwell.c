@@ -127,15 +127,22 @@ ModbusMaster_Cmds ModbusMaster_ConnectList[] =
 
 ModbusMaster_Cmds ModbusMaster_MonitorList[] =
 	{
-		// string is "dev,cmd,adrhi,adrlo,lenhi,lenlo" bytes of modbus command. bytelen, data, and checksum are added as necessary.
+		// "\x01\x10\x05\x40\x0\x20" - string is
+		// "dev,cmd,adrhi,adrlo,lenhi,lenlo"
 
-		// WRITE OUTPUTS
-		{"\x01\x10\x10\x00\x00\x0A", 6, 0},
-		// {"\x01\x0F\x08\x10\x00\x0E", 6, 0}, // M16-M29 plc markers
+		// 6 - string length
 
-		// READ INPUTS
-		{"\x01\x03\x0C\x00\x00\x0A", 6, 32},
-		// {"\x01\x01\x08\x00\x00\x10", 6, 2},
+		// 32 - numbers of MB registers
+
+		// bytes of modbus command. bytelen, data, and checksum are added as necessary.
+
+		// Command for WRITE data to PLC Haiwell V832-V863 (32 int length)
+		// data read from MBRegisters[32..63]
+		{"\x01\x10\x05\x40\x00\x20", 6, 32},
+
+		// Command for READ V register from PLC Haiwell V800-V831 (32 int length)
+		// data write in MBRegisters[0..31]
+		{"\x01\x03\x05\x20\x00\x20", 6, 0},
 
 		{0, 0, 0} // end flag
 };
@@ -162,13 +169,13 @@ void ModbusMaster_Init()
 	// printf("persist.UserData[%d]<=%u\n",PERSIST_MBREG_BLOCK_ADR,MBRegisters); //debug
 }
 
-// char* strncpy(char *dst,char* src,int len)
-// {
-// 	int i;
-// 	for (i=0;i<len;i++)
-// 		dst[i]=src[i];
-// 	return dst;
-// }
+char *strncpy_modify(char *dst, char *src, int len)
+{
+	int i;
+	for (i = 0; i < len; i++)
+		dst[i] = src[i];
+	return dst;
+}
 
 // marshal and move plc values 0-31 from PLC/Slave into MBRegisters to KFlop memory
 void ModbusMaster_RegUnload()
@@ -192,8 +199,13 @@ void ModbusMaster_RegUnload()
 void ModbusMaster_RegLoad()
 {
 
-	MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
-	MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
+	// MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
+	// MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
+	int i;
+	for (i = 0; i < 32; i++)
+	{
+		MBRegisters[32 + i] = MBRegisters[32 + i] + MBRegisters[31 + i];
+	}
 }
 
 static unsigned char auchCRCHi[] = {
@@ -312,7 +324,7 @@ void ModbusMaster_Send(int verbose)
 		ModbusMaster_NextCmd(MBERROR_NONE);
 	}
 
-	strncpy(ModbusMaster_packetBuild, ModbusMaster_SentPtr->start, ModbusMaster_SentPtr->len);
+	strncpy_modify(ModbusMaster_packetBuild, ModbusMaster_SentPtr->start, ModbusMaster_SentPtr->len);
 	chp = &ModbusMaster_packetBuild[ModbusMaster_SentPtr->len];
 	switch (ModbusMaster_packetBuild[1])
 	{
@@ -372,7 +384,7 @@ MBErrors Process_Data(unsigned char *Buffer, unsigned char Count)
 		return INTERROR_CHECKSUM;
 	}
 
-	printf("Packet CRC %d - Recalculated %d\n", CRC, Recalculated_CRC); // debug
+	printf("Packet CRC %04X - Recalculated %04X\n", CRC, Recalculated_CRC); // debug
 
 	switch (Buffer[1])
 	{
@@ -407,16 +419,16 @@ void ModbusMaster_Monitor()
 	{
 		ModbusMaster_LastInTime = Time_sec();
 
-		printf("Data recieved from PLC >>>>>>>> %ld \n", ModbusMaster_LastInTime); // debug
+		printf(">>>>>>>> Data received from PLC Haiwell >>>>>>>> \n"); // debug
 
 		while (pRS232RecIn != pRS232RecOut) // data in buffer
 		{
 			c = RS232_GetChar();
 			if (ModbusMaster_packetSize < 255)
 				ModbusMaster_packetBuild[ModbusMaster_packetSize++] = c;
-			printf("%02x-", c & 0xFF); // debug
+			printf("%02X-", c & 0xFF); // debug
 		}
-		printf("\n", c & 0xFF); // debug
+		printf("\n<<<<<<<<< Data received from PLC Haiwell <<<<<<<<< \n"); // debug
 	}
 	else
 	{
@@ -462,13 +474,15 @@ void ModbusMaster_Loop()
 		// 	;
 		// printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n", ModbusMaster_Idle); // debug
 
-		ModbusMaster_Send(1);
-		for (x = 0; x < 16; x++)
-		{
-			printf("%04d ", (unsigned)MBRegisters[x]);
-			if ((x & 7) == 7)
-				printf("\n");
-		}
+		ModbusMaster_Send(0);
+		// debug
+		// for (x = 0; x < 64; x++)
+		// {
+		// 	printf("%04d ", (unsigned)MBRegisters[x]);
+		// 	if ((x & 7) == 7)
+		// 		printf("\n");
+		// }
+
 		ModbusMaster_Retry = 0;
 	}
 	else
