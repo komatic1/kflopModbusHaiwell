@@ -199,8 +199,10 @@ void ModbusMaster_RegUnload()
 void ModbusMaster_RegLoad()
 {
 
-	// MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
-	// MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
+	MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
+	MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
+
+	// just for test
 	int i;
 	for (i = 0; i < 32; i++)
 	{
