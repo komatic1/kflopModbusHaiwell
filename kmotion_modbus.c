@@ -80,8 +80,6 @@ typedef enum
 
 main()
 {
-	//************************************************************************
-	// START MAIN AREA MODBUS RTU CODE
 	ModbusMaster_Init();
 	int reportsecs = 20;
 	double starttime;
@@ -93,21 +91,26 @@ main()
 
 	starttime = Time_sec();
 	TallyCommands = ModbusMaster_TallyCommands;
-	// END MODBUS RTU CODE
-	//************************************************************************
 
-	//************************************************************************
-	for (;;)
+	while (1)
 	{
 		WaitNextTimeSlice();
 		Delay_sec(0.01);
-		// START MODBUS RTU MAIN LOOP CODE
 		ModbusMaster_Loop();
-		// END MODBUS RTU MAIN LOOP CODE
-		//************************************************************************
-	} // END LOOP FOREVER
-} // END OF MAIN
-//************************************************************************
+
+		if (starttime + reportsecs < Time_sec())
+		{
+			printf("\nSeconds: %d\n", reportsecs);
+			printf("ModbusMaster_MonitorCycleTime=%f (%f/s)\n", ModbusMaster_MonitorCycleTime, 1.0 / ModbusMaster_MonitorCycleTime);
+			printf("ModbusMaster_TallyCommands/s=%0.lf\n", (ModbusMaster_TallyCommands - TallyCommands) / (double)reportsecs);
+			printf("ModbusMaster_TallyConnections=%d\n", ModbusMaster_TallyConnections);
+			printf("ModbusMaster_TallyRetries=%d\n", ModbusMaster_TallyRetries);
+
+			starttime = Time_sec();
+			TallyCommands = ModbusMaster_TallyCommands;
+		}
+	}
+}
 
 //************************************************************************
 // START MODBUS RTU FUNCTION BLOCKS

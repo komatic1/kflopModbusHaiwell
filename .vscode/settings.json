@@ -2,5 +2,13 @@
   "files.associations": {
     "modbusmaster.h": "c"
   },
-  "cSpell.words": ["Haiwell", "Kflop", "Kmotion", "komatic", "Savelev", "ZAHOR"]
+  "cSpell.words": [
+    "Haiwell",
+    "Kflop",
+    "Kmotion",
+    "komatic",
+    "reportsecs",
+    "Savelev",
+    "ZAHOR"
+  ]
 }
