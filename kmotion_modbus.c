@@ -1,13 +1,25 @@
-// PROGRAMMER: Alexander Savelev ryan.hollywood.in.flame@gmail.com
-// Creation Date: 13-03-2018
-// LASTEST EDIT DATE: 13-03-2018
-// PROGRAM FUNCTION:
-// HANDLE ALL SERIAL COMMINICATION BETWEEN KFLOP AND Haiwell
+// Created by komatic
+// For exchange data via modbus between KFlop and PLC(Haiwell)
+// Creation Date: 25-08-2023
+// Latest Edit Date: 31-08-2023
+// Tested on hardware:
+// Kmotion/Kflop - v5.1.0
+// PLC - Haiwell AT 16SOP
+// rs232-rs485 converter - VTR-232/485PC
+// Data move location:
+// 32int from V800..V831 plc to MBRegisters[0..31] Kflop
+// 32int from Kflop MBRegisters[32..63] to V832..V863
+
+// Connection Parameters for PLC comm1:
 // BAUD RATE=38400
 // DATA BITS=8 RTU MODE
 // PARITY=NONE
 // STOP BITS=1
 // FLOW CONTROL=NONE
+
+// based on:
+// PROGRAMMER: Alexander Savelev ryan.hollywood.in.flame@gmail.com
+// ZAHOR FX2N-30MR.c
 
 #include "KMotionDef.h"
 #include "ModBusMaster.h"
@@ -73,7 +85,6 @@ main()
 	ModbusMaster_Init();
 	int reportsecs = 20;
 	double starttime;
-	;
 	double MonitorStartTime = 0; // start of most recent monitor cycle
 	double MonitorCycleTime = 0; // seconds to call all commands in Monitor list
 	int TallyConnections = 0;	 // Number of times Connection list has been sent
@@ -86,24 +97,16 @@ main()
 	//************************************************************************
 
 	//************************************************************************
-	// эта секция зациклена, все что выполняется всегда, должно быть здесь
-
-	for (;;) // бесконечный цикл
+	for (;;)
 	{
 		WaitNextTimeSlice();
-		Delay_sec(0.01); // время очень критично, увеличение не рекомендовано
-
-		//************************************************************************
-
-		//************************************************************************
+		Delay_sec(0.01);
 		// START MODBUS RTU MAIN LOOP CODE
 		ModbusMaster_Loop();
 		// END MODBUS RTU MAIN LOOP CODE
 		//************************************************************************
-
 	} // END LOOP FOREVER
 } // END OF MAIN
-
 //************************************************************************
 
 //************************************************************************
@@ -199,8 +202,10 @@ void ModbusMaster_RegUnload()
 void ModbusMaster_RegLoad()
 {
 
-	// MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
-	// MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
+	MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
+	MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
+
+	// just for test
 	int i;
 	for (i = 0; i < 32; i++)
 	{
@@ -308,7 +313,7 @@ void ModbusMaster_NextCmd(MBErrors ecode)
 void ModbusMaster_Send(int verbose)
 {
 	// send the command currently pointed to by ModbusMaster_SentPtr
-	printf("ModbusMaster_Send(%d)\n", verbose);
+	// printf("ModbusMaster_Send(%d)\n", verbose);
 
 	char *chp;
 	int x;
@@ -332,15 +337,13 @@ void ModbusMaster_Send(int verbose)
 	case 0xF:
 		ModbusMaster_RegLoad();
 		*chp++ = ModbusMaster_packetBuild[5] * 2;
-		// for (x=0;x<ModbusMaster_packetBuild[5];x++)
-		for (x = 0; x < ModbusMaster_packetBuild[5]; x++)
 
+		for (x = 0; x < ModbusMaster_packetBuild[5]; x++)
 		{
 
 			*chp++ = MBRegisters[x + ModbusMaster_SentPtr->reg] & 0xFF;
 			*chp++ = (MBRegisters[x + ModbusMaster_SentPtr->reg] >> 8) & 0xFF;
 		}
-
 		break;
 
 	case 0x02: // RO Read
@@ -355,6 +358,7 @@ void ModbusMaster_Send(int verbose)
 	*chp++ = csum & 0xFF;
 	*chp++ = (csum >> 8) & 0xFF;
 
+	// printf("SEND data >>>>>>>\n ");
 	if (verbose)
 		printf("Tx:"); // debug
 	for (xp = ModbusMaster_packetBuild; xp < chp; xp++)
@@ -384,7 +388,7 @@ MBErrors Process_Data(unsigned char *Buffer, unsigned char Count)
 		return INTERROR_CHECKSUM;
 	}
 
-	printf("Packet CRC %04X - Recalculated %04X\n", CRC, Recalculated_CRC); // debug
+	// printf("Packet CRC %04X - Recalculated %04X\n", CRC, Recalculated_CRC); // debug
 
 	switch (Buffer[1])
 	{
@@ -411,24 +415,26 @@ MBErrors Process_Data(unsigned char *Buffer, unsigned char Count)
 	return MBERROR_NONE; // We made it to the end, return
 }
 
-void ModbusMaster_Monitor()
+void ModbusMaster_Monitor(int verbose)
 {
 	char c;
 
 	if (pRS232RecIn != pRS232RecOut)
 	{
 		ModbusMaster_LastInTime = Time_sec();
-
-		printf(">>>>>>>> Data received from PLC Haiwell >>>>>>>> \n"); // debug
+		if (verbose)
+			printf(">>>>>>>> Data received from PLC Haiwell >>>>>>>> \n"); // debug
 
 		while (pRS232RecIn != pRS232RecOut) // data in buffer
 		{
 			c = RS232_GetChar();
 			if (ModbusMaster_packetSize < 255)
 				ModbusMaster_packetBuild[ModbusMaster_packetSize++] = c;
-			printf("%02X-", c & 0xFF); // debug
+			if (verbose)
+				printf("%02X-", c & 0xFF); // debug
 		}
-		printf("\n<<<<<<<<< Data received from PLC Haiwell <<<<<<<<< \n"); // debug
+		if (verbose)
+			printf("\n<<<<<<<<< Data received from PLC Haiwell <<<<<<<<< \n"); // debug
 	}
 	else
 	{
@@ -466,7 +472,7 @@ void ModbusMaster_Monitor()
 
 void ModbusMaster_Loop()
 {
-	printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n", ModbusMaster_Idle); // debug
+	// printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n", ModbusMaster_Idle); // debug
 	if (!ModbusMaster_Idle)
 	{
 		int x;
@@ -474,7 +480,7 @@ void ModbusMaster_Loop()
 		// 	;
 		// printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n", ModbusMaster_Idle); // debug
 
-		ModbusMaster_Send(0);
+		ModbusMaster_Send(0); // посылаем данные, выполняем очередь команд
 		// debug
 		// for (x = 0; x < 64; x++)
 		// {
@@ -486,7 +492,7 @@ void ModbusMaster_Loop()
 		ModbusMaster_Retry = 0;
 	}
 	else
-		ModbusMaster_Monitor();
+		ModbusMaster_Monitor(0); // ждем данные для приема
 }
 // END MODBUS FUNCTION BLOCKS
 //************************************************************************
