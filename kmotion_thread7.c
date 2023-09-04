@@ -3,12 +3,18 @@
 void main()
 {
     printf("Thread 7 started !!!!!!!!!!!!!!! \n");
-    double i;
-    for (i = 0; i < 10000; i++)
+    int i;
+
+    for (i = 0; i <= 199; i++)
     {
-        ClearBit(47);
-        Delay_sec(0.2);
-        SetBit(47);
-        Delay_sec(0.3);
+        printf("persist.UserData[%d]=%d\n", i, persist.UserData[i]);
     }
+
+    // for (i = 0; i < 10000; i++)
+    // {
+    //     ClearBit(47);
+    //     Delay_sec(0.2);
+    //     SetBit(47);
+    //     Delay_sec(0.3);
+    // }
 }
