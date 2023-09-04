@@ -7,7 +7,11 @@ void main()
 
     for (i = 0; i <= 199; i++)
     {
-        printf("persist.UserData[%d]=%d\n", i, persist.UserData[i]);
+        printf("%d-", persist.UserData[i]);
+    }
+    while (!persist.UserData[35])
+    {
+        ;
     }
 
     // for (i = 0; i < 10000; i++)
