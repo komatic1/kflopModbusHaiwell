@@ -3,7 +3,9 @@
     "modbusmaster.h": "c"
   },
   "cSpell.words": [
+    "cncmachines",
     "Haiwell",
+    "ICONHAND",
     "Kflop",
     "Kmotion",
     "komatic",

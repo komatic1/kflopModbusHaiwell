@@ -2,7 +2,7 @@
 
 void main()
 {
-    printf("Thread 6 started !!!!!!!!!!!!!!! \n");
+    printf("Thread 3 started !!!!!!!!!!!!!!! \n");
     double i;
     for (i = 0; i < 10000; i++)
     {
