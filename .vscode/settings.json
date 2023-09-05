@@ -3,6 +3,8 @@
     "modbusmaster.h": "c"
   },
   "cSpell.words": [
+    "AXISY",
+    "AXISZ",
     "cncmachines",
     "Haiwell",
     "ICONHAND",

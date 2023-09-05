@@ -64,8 +64,12 @@ int DoToolChange(int ToolSlot);
 int GetCurrentTool(int *tool);
 int SaveCurrentTool(int tool);
 BOOL ToolNumberValid(int tool);
+float ToolPositionX(int tool);
+int MoveXY(float x, float y, float Speed);
+int MoveZ(float z, float Speed);
 int UnloadTool(int CurrentTool);
-int LoadNewTool(int CurrentTool, int Tool);
+int LoadNewTool(int Tool);
+int EjectTool(void);
 
 //-----------------------------------------
 //      Rotary TOOL CHANGING
@@ -80,6 +84,7 @@ main()
 
     int ToolSlot = persist.UserData[TOOL_VAR]; // Requested tool to load (value stored an integer)
 
+    printf("ToolSlot=%d\n", ToolSlot);
     if (DoToolChange(ToolSlot)) // perform Tool Change
     {
         // error, Halt Job
