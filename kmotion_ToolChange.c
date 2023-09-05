@@ -2,7 +2,6 @@
 #include "/include/KflopToKMotionCNCFunctions.c"
 
 #define TMP 10 // which spare persist to use to transfer data
-#define AXISA 3
 
 // Tool changer Last tool loaded is saved globally in this Var
 #define LAST_TOOL_VAR 8 //  -1=Spindle empty, 0=unknown, 1-80 Tool Slot loaded into Spindle
@@ -19,10 +18,7 @@
 #define AXISB 3
 
 //---------Absolute position of tool holders
-#define HOLDER_X_1 100
-#define HOLDER_X_2 200
-#define HOLDER_X_3 300
-#define HOLDER_X_4 400
+#define HOLDER_X 100
 #define HOLDER_Y 150
 #define HOLDER_Z 100
 #define HOLDER_B 90
@@ -32,8 +28,8 @@
 #define TOOL_HEIGHT_PLATE_Y 50
 
 // absolute position to move to that is permanently unobstructed, and safe to move down in Z
-#define TOOL_CHANGE_SAFE_POS_X 250
-#define TOOL_CHANGE_SAFE_POS_Y 1200
+#define TOOL_CHANGE_SAFE_POS_X 0
+#define TOOL_CHANGE_SAFE_POS_Y 0
 
 #define AXIS_SAFE_DISTANCE_Y 100 // distance in mm to approach tool holder
 //---------
@@ -58,6 +54,7 @@
 #define CNT_PER_MM_X 800.0
 #define CNT_PER_MM_Y 800.0
 #define CNT_PER_MM_Z 800.0
+#define CNT_PER_MM_B 800.0
 
 // function prototypes
 int DoToolChange(int ToolSlot);
@@ -98,7 +95,7 @@ int DoToolChange(int ToolSlot)
     int CurrentTool;
 
     if (GetCurrentTool(&CurrentTool))
-        return 1; //  -1=Spindle empty, 0=unknown, 1-4 Tool Slot loaded into Spindle
+        return 1; //  -1=Spindle empty, 0=unknown, 1-80 Tool Slot loaded into Spindle
 
     printf("Load Tool Slot %d requested, Current Tool %d\n", ToolSlot, CurrentTool);
 
@@ -183,24 +180,13 @@ int UnloadTool(int CurrentTool)
     if (MoveZ(0.0, SlowSpeed))
         return 1;
 
+    // - Rapid to B rotate to home position
+    if (MoveB(0.0, SlowSpeed))
+        return 1;
+
     // - Rapid to TOOL_CHANGE_SAFE_POS to execute a safe negative Z move
     if (MoveXY(TOOL_CHANGE_SAFE_POS_X, TOOL_CHANGE_SAFE_POS_Y, SlowSpeed))
         return 1;
-
-    // - Approach tool holder by matching Z height of tool flange currently in spindle with tool holder                            claw
-    if (MoveZ(HOLDER_Z, SlowSpeed))
-        return 1;
-
-    // - After matching height above, approach tool holder by moving to holder X position
-    if (MoveXY(ToolPositionX(CurrentTool), TOOL_CHANGE_SAFE_POS_Y, SlowSpeed))
-        return 1;
-
-    // - After matching X position, match tool Y position
-    if (MoveXY(ToolPositionX(CurrentTool), HOLDER_Y, SlowSpeed))
-        return 1;
-
-    // - Move only in Y position until current position matches tool holder position (maybe disable X)                          axis?)
-    // ???
 
     // - Eject tool
     if (EjectTool())
@@ -251,7 +237,7 @@ int EjectTool(void)
 // return x position of tool holder as a function of the tool
 float ToolPositionX(int tool)
 {
-    return (HOLDER_X_2 - HOLDER_X_1) * (tool - 1) + HOLDER_X_1;
+    return (HOLDER_X) * (tool - 1) + HOLDER_X;
 }
 
 // Get the last loaded tool.  Parameter points to where to return tool
@@ -370,6 +356,24 @@ int MoveZ(float z, float Speed)
     while (!CheckDone(AXISZ))
     {
         if (!chan[AXISZ].Enable)
+        {
+            printf("Error Z Axis Disabled\n");
+            MsgBox("Error Z Axis Disabled\n", MB_ICONHAND | MB_OK);
+            return 1;
+        }
+    }
+    return 0; // success
+}
+
+// Move Axis B at specified Speed and wait until complete
+// return 0 = success, 1 if axis disabled
+int MoveB(float z, float Speed)
+{
+    MoveAtVel(AXISB, z * CNT_PER_MM_B, Speed * CNT_PER_MM_B);
+
+    while (!CheckDone(AXISB))
+    {
+        if (!chan[AXISB].Enable)
         {
             printf("Error Z Axis Disabled\n");
             MsgBox("Error Z Axis Disabled\n", MB_ICONHAND | MB_OK);
