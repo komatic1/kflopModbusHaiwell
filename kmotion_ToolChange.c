@@ -9,9 +9,6 @@
 
 #define CNT_PER_DEGREE_A 1000.0
 
-//-----------------------------------------
-//		LINEAR TOOL CHANGING
-//-----------------------------------------
 #define AXISX 0
 #define AXISY 1
 #define AXISZ 2
@@ -35,15 +32,15 @@
 //---------
 
 //--------- Spindle IO bits
-#define CLAW_EJECT 58    // IO bit to eject tool from spindle (KONNECT OUTPUT 10)
-#define SPINDLE_CLEAN 59 // IO bit to blow air out of spindle taper (KONNECT OUTPUT 11)
-#define CLAW_LOOSE 1048  // IO bit to sense whether the claw has ejected (KONNECT INPUT 24)
-#define TOOL_SENSE 1049  // IO bit to sense whether the a tool is in the spindle (KONNECT INPUT 24)
+// #define CLAW_EJECT 58    // IO bit to eject tool from spindle (KONNECT OUTPUT 10)
+// #define SPINDLE_CLEAN 59 // IO bit to blow air out of spindle taper (KONNECT OUTPUT 11)
+// #define CLAW_LOOSE 1048  // IO bit to sense whether the claw has ejected (KONNECT INPUT 24)
+// #define TOOL_SENSE 1049  // IO bit to sense whether the a tool is in the spindle (KONNECT INPUT 24)
 //---------
 
 #define TOOL_VAR 9 // Tool changer desired new tool Var
 
-#define CLAMP_TIME 1.0       // seconds to wait for the clamp/unclamp
+#define CLAMP_TIME 10.0      // seconds to wait for the clamp/unclamp
 #define TOOL_HEIGHT_BIT 1055 // bit to read tool height plate (KONNECT INPUT 31)
 
 #define SAFE_HEIGHT_Z 100        // relative distance in mm to move to clear the top of the tool taper
@@ -74,7 +71,7 @@ int EjectTool(void);
 
 main()
 {
-    printf("kmotion_ToolChange.c started debug !!!!!!!!\n");
+    printf("kmotion_ToolChange.c started  !!!!!!!! debug message\n");
     // int slot = persist.UserData[9];   // value stored is an int
     // int id = persist.UserData[9 + 1]; // value stored is an int
     // printf("Tool Set to slot %d id %d\n", slot, id); // print the slot and id
@@ -198,11 +195,16 @@ int UnloadTool(int CurrentTool)
 // - Eject tool
 int EjectTool(void)
 {
+
+    int index = 132;
+    int bitNumber = 0;
+    Persist.UserData[132] |= (1 << bitNumber); // address in plc Haiwell V832.0
+
     // - Turn on CLAW_EJECT bit to remove tool from spindle
-    SetBit(CLAW_EJECT);
+    // SetBit(CLAW_EJECT);
 
     // - Turn on SPINDLE_CLEAN bit to remove any debris from taper and tools
-    SetBit(SPINDLE_CLEAN);
+    // SetBit(SPINDLE_CLEAN);
 
     // - Wait for time in seconds defined by CLAMP_TIME
     Delay_sec(CLAMP_TIME);

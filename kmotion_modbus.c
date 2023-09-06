@@ -187,33 +187,60 @@ char *strncpy_modify(char *dst, char *src, int len)
 void ModbusMaster_RegUnload()
 {
 
+	// int index = 0; // Замените на индекс нужного вам слова
+	// int bitNumber = 3; // Замените на номер нужного вам бита
+	// int wordValue = Persist.UserData[index];
+	// int bitValue = (wordValue >> bitNumber) & 1;
+
 	int i;
-	int j;
-
-	for (i = 0; i < 8; i++)
+	for (i = 0; i < 32; i++) // move data from buffer received from plc
 	{
-		SetStateBit(48 + i, (MBRegisters[2] >> i) & 1);
+		persist.UserData[100 + i] = MBRegisters[i];
 	}
 
-	for (j = 0; j < 8; j++)
-	{
-		SetStateBit(56 + j, (MBRegisters[3] >> j) & 1);
-	}
+	// int i;
+	// int j;
+
+	// for (i = 0; i < 8; i++)
+	// {
+	// 	SetStateBit(48 + i, (MBRegisters[2] >> i) & 1);
+	// }
+
+	// for (j = 0; j < 8; j++)
+	// {
+	// 	SetStateBit(56 + j, (MBRegisters[3] >> j) & 1);
+	// }
 }
 
 // marshal and move virtual bits from KFLOP to PLC/Slave via MBRegisters
 void ModbusMaster_RegLoad()
 {
 
-	MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
-	MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
+	// 	// Пример 2: Установка бита в слове с индексом index
+	// int index = 0; // Замените на индекс нужного вам слова
+	// int bitNumber = 3; // Замените на номер нужного вам бита
+	// Persist.UserData[index] |= (1 << bitNumber); // Установка бита
 
-	// just for test
+	// // Пример 3: Сброс бита в слове с индексом index
+	// int index = 0; // Замените на индекс нужного вам слова
+	// int bitNumber = 3; // Замените на номер нужного вам бита
+	// Persist.UserData[index] &= ~(1 << bitNumber); // Сброс бита
+
 	int i;
-	for (i = 0; i < 32; i++)
+	for (i = 0; i < 32; i++) // move data to buffer for send to plc
 	{
-		MBRegisters[32 + i] = MBRegisters[32 + i] + MBRegisters[31 + i];
+		MBRegisters[32 + i] = persist.UserData[132 + i];
 	}
+
+	// MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
+	// MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
+
+	// // just for test
+	// int i;
+	// for (i = 0; i < 32; i++)
+	// {
+	// 	MBRegisters[32 + i] = MBRegisters[32 + i] + MBRegisters[31 + i];
+	// }
 }
 
 static unsigned char auchCRCHi[] = {
