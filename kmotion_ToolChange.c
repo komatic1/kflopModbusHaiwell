@@ -84,8 +84,10 @@ main()
     if (DoToolChange(ToolSlot)) // perform Tool Change
     {
         // error, Halt Job
+        printf("error, Halt Job\n");
         DoPC(PC_COMM_HALT);
     }
+    printf("End main ToolChange, finish\n");
 }
 
 // Perform Tool Change.  Return 0=Success, 1=Failure
