@@ -1,7 +1,5 @@
-#include "KMotionDef.h"
-
-#include "MySpindleDefs.h"
-
+#include "/include/KMotionDef.h"
+#include "/include/MySpindleDefs.h"
 
 // desired speed is passed from KMotionCNC in variable KMVAR
 // save in user variable STATEVAR whether it was off, CW, or CCW (0,1,-1)
@@ -9,13 +7,15 @@
 
 main()
 {
+	printf("kmotion_OffJog.c started!!!!!\n");
+
 	// spin down
-	
+
 	ClearBit(SPINDLECW_BIT);
 	ClearBit(SPINDLECCW_BIT);
-	Jog(SPINDLEAXIS,0);
+	Jog(SPINDLEAXIS, 0);
 	printf("Jogging Spindle Stop\n");
-	persist.UserData[STATEVAR] = 0;  // remember we are Off
-	while (!CheckDone(SPINDLEAXIS)) ;
+	persist.UserData[STATEVAR] = 0; // remember we are Off
+	while (!CheckDone(SPINDLEAXIS))
+		;
 }
-

@@ -80,12 +80,14 @@ main()
 
     int ToolSlot = persist.UserData[TOOL_VAR]; // Requested tool to load (value stored an integer)
 
-    printf("ToolSlot=%d\n", ToolSlot);
+    printf("Command change current tool to Tool = %d\n", persist.UserData[TOOL_VAR]);
     if (DoToolChange(ToolSlot)) // perform Tool Change
     {
         // error, Halt Job
+        printf("error, Halt Job\n");
         DoPC(PC_COMM_HALT);
     }
+    printf("End main ToolChange, finish\n");
 }
 
 // Perform Tool Change.  Return 0=Success, 1=Failure
@@ -281,7 +283,7 @@ int GetCurrentTool(int *ptool)
 
     if (!success) // if still no success ask Operator
     {
-        Answer = InputBox("Tool in Spindle or -1", &value);
+        Answer = InputBox("Enter Tool in Spindle or -1", &value);
         if (Answer)
         {
             printf("Operator Canceled\n");
@@ -305,7 +307,7 @@ int GetCurrentTool(int *ptool)
 
     printf("Current tool = %d\n", tool);
     *ptool = tool; // return result to caller
-    return 0;      // success
+    return 0;      // no success - tool number wrong (stop program)
 }
 
 // save the tool number to KFLOP global Variable and to PC Disk file in case we loose power

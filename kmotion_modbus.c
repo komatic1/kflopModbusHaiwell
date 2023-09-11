@@ -21,8 +21,8 @@
 // PROGRAMMER: Alexander Savelev ryan.hollywood.in.flame@gmail.com
 // ZAHOR FX2N-30MR.c
 
-#include "KMotionDef.h"
-#include "ModBusMaster.h"
+#include "/include/KMotionDef.h"
+#include "/include/ModBusMaster.h"
 
 //************************************************************************
 // START - CODE FOR MODBUS RTU MASTER

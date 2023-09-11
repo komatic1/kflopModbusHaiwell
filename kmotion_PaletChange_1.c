@@ -1,6 +1,6 @@
-#include "KMotionDef.h"
+#include "/include/KMotionDef.h"
 
 main()
 {
-    printf("Pallet change started 1 !!!!!!!!\n");
+    printf("kmotion_PaletChange_1.c started !!!!!!!!\n");
 }

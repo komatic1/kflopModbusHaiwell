@@ -2,7 +2,8 @@
   "files.associations": {
     "modbusmaster.h": "c",
     "kmotiondef.h": "c",
-    "pc-dsp.h": "c"
+    "pc-dsp.h": "c",
+    "myspindledefs.h": "c"
   },
   "cSpell.words": [
     "AXISY",
