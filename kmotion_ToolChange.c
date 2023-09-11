@@ -1,3 +1,5 @@
+// kmotion_ToolChange.c
+
 #include "/include/KMotionDef.h"
 #include "/include/KflopToKMotionCNCFunctions.c"
 
@@ -32,10 +34,10 @@
 //---------
 
 //--------- Spindle IO bits
-// #define CLAW_EJECT 58    // IO bit to eject tool from spindle (KONNECT OUTPUT 10)
-// #define SPINDLE_CLEAN 59 // IO bit to blow air out of spindle taper (KONNECT OUTPUT 11)
-// #define CLAW_LOOSE 1048  // IO bit to sense whether the claw has ejected (KONNECT INPUT 24)
-// #define TOOL_SENSE 1049  // IO bit to sense whether the a tool is in the spindle (KONNECT INPUT 24)
+#define CLAW_EJECT 58    // IO bit to eject tool from spindle (KONNECT OUTPUT 10)
+#define SPINDLE_CLEAN 59 // IO bit to blow air out of spindle taper (KONNECT OUTPUT 11)
+#define CLAW_LOOSE 1048  // IO bit to sense whether the claw has ejected (KONNECT INPUT 24)
+#define TOOL_SENSE 1049  // IO bit to sense whether the a tool is in the spindle (KONNECT INPUT 24)
 //---------
 
 #define TOOL_VAR 9 // Tool changer desired new tool Var
@@ -135,8 +137,8 @@ int LoadNewTool(int Tool)
     // - Engage new tool
     // - CLAW_EJECT and SPINDLE_CLEAN bits are currently high from tool removal operation
     // - Turn off CLAW_EJECT and SPINDLE_CLEAN bits to engage tool
-    ClearBit(CLAW_EJECT);
-    ClearBit(SPINDLE_CLEAN);
+    // ClearBit(CLAW_EJECT);
+    // ClearBit(SPINDLE_CLEAN);
 
     // - Wait for time in seconds defined by CLAMP_TIME
     Delay_sec(CLAMP_TIME);
@@ -198,7 +200,7 @@ int EjectTool(void)
 
     int index = 132;
     int bitNumber = 0;
-    Persist.UserData[132] |= (1 << bitNumber); // address in plc Haiwell V832.0
+    persist.UserData[132] |= (1 << bitNumber); // address in plc Haiwell V832.0
 
     // - Turn on CLAW_EJECT bit to remove tool from spindle
     // SetBit(CLAW_EJECT);
