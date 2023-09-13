@@ -21,8 +21,8 @@
 // PROGRAMMER: Alexander Savelev ryan.hollywood.in.flame@gmail.com
 // ZAHOR FX2N-30MR.c
 
-#include "KMotionDef.h"
-#include "ModBusMaster.h"
+#include "/include/KMotionDef.h"
+#include "/include/ModBusMaster.h"
 
 //************************************************************************
 // START - CODE FOR MODBUS RTU MASTER
@@ -98,17 +98,17 @@ main()
 		Delay_sec(0.01);
 		ModbusMaster_Loop();
 
-		if (starttime + reportsecs < Time_sec())
-		{
-			printf("\nSeconds: %d\n", reportsecs);
-			printf("ModbusMaster_MonitorCycleTime=%f (%f/s)\n", ModbusMaster_MonitorCycleTime, 1.0 / ModbusMaster_MonitorCycleTime);
-			printf("ModbusMaster_TallyCommands/s=%0.lf\n", (ModbusMaster_TallyCommands - TallyCommands) / (double)reportsecs);
-			printf("ModbusMaster_TallyConnections=%d\n", ModbusMaster_TallyConnections);
-			printf("ModbusMaster_TallyRetries=%d\n", ModbusMaster_TallyRetries);
+		// if (starttime + reportsecs < Time_sec())
+		// {
+		// 	printf("\nSeconds: %d\n", reportsecs);
+		// 	printf("ModbusMaster_MonitorCycleTime=%f (%f/s)\n", ModbusMaster_MonitorCycleTime, 1.0 / ModbusMaster_MonitorCycleTime);
+		// 	printf("ModbusMaster_TallyCommands/s=%0.lf\n", (ModbusMaster_TallyCommands - TallyCommands) / (double)reportsecs);
+		// 	printf("ModbusMaster_TallyConnections=%d\n", ModbusMaster_TallyConnections);
+		// 	printf("ModbusMaster_TallyRetries=%d\n", ModbusMaster_TallyRetries);
 
-			starttime = Time_sec();
-			TallyCommands = ModbusMaster_TallyCommands;
-		}
+		// 	starttime = Time_sec();
+		// 	TallyCommands = ModbusMaster_TallyCommands;
+		// }
 	}
 }
 
@@ -172,7 +172,7 @@ void ModbusMaster_Init()
 
 	// make the register static arrays available to the other threads
 	persist.UserData[PERSIST_MBREG_BLOCK_ADR] = (int)MBRegisters;
-	// printf("persist.UserData[%d]<=%u\n",PERSIST_MBREG_BLOCK_ADR,MBRegisters); //debug
+	printf("persist.UserData[%d]<=%u\n", PERSIST_MBREG_BLOCK_ADR, MBRegisters); // debug
 }
 
 char *strncpy_modify(char *dst, char *src, int len)
@@ -187,16 +187,13 @@ char *strncpy_modify(char *dst, char *src, int len)
 void ModbusMaster_RegUnload()
 {
 
-	// int index = 0; // Замените на индекс нужного вам слова
-	// int bitNumber = 3; // Замените на номер нужного вам бита
-	// int wordValue = Persist.UserData[index];
-	// int bitValue = (wordValue >> bitNumber) & 1;
-
 	int i;
 	for (i = 0; i < 32; i++) // move data from buffer received from plc
 	{
-		persist.UserData[100 + i] = MBRegisters[i];
+		persist.UserData[110 + i] = ((MBRegisters[i] >> 8) & 0x00FF) | ((MBRegisters[i] << 8) & 0xFF00);
 	}
+
+	// printf("persist.UserData[110],[111] - %d - %d\n", persist.UserData[110], persist.UserData[111]);
 
 	// int i;
 	// int j;
@@ -216,26 +213,16 @@ void ModbusMaster_RegUnload()
 void ModbusMaster_RegLoad()
 {
 
-	// 	// Пример 2: Установка бита в слове с индексом index
-	// int index = 0; // Замените на индекс нужного вам слова
-	// int bitNumber = 3; // Замените на номер нужного вам бита
-	// Persist.UserData[index] |= (1 << bitNumber); // Установка бита
-
-	// // Пример 3: Сброс бита в слове с индексом index
-	// int index = 0; // Замените на индекс нужного вам слова
-	// int bitNumber = 3; // Замените на номер нужного вам бита
-	// Persist.UserData[index] &= ~(1 << bitNumber); // Сброс бита
-
 	int i;
 	for (i = 0; i < 32; i++) // move data to buffer for send to plc
 	{
-		MBRegisters[32 + i] = persist.UserData[132 + i];
+		MBRegisters[32 + i] = ((persist.UserData[142 + i] >> 8) & 0x00FF) | ((persist.UserData[142 + i] << 8) & 0xFF00);
 	}
 
 	// MBRegisters[0] = (VirtualBitsEx[0]) & 0xFFFF;
 	// MBRegisters[1] = (VirtualBitsEx[0] >> 16) & 0xFFFF;
 
-	// // just for test
+	// just for test
 	// int i;
 	// for (i = 0; i < 32; i++)
 	// {
@@ -510,7 +497,7 @@ void ModbusMaster_Loop()
 		// 	;
 		// printf("ModbusMaster_Loop: ModbusMaster_Idle=%d\n", ModbusMaster_Idle); // debug
 
-		ModbusMaster_Send(0); // посылаем данные, выполняем очередь команд
+		ModbusMaster_Send(0);
 		// debug
 		// for (x = 0; x < 64; x++)
 		// {
@@ -522,7 +509,7 @@ void ModbusMaster_Loop()
 		ModbusMaster_Retry = 0;
 	}
 	else
-		ModbusMaster_Monitor(0); // ждем данные для приема
+		ModbusMaster_Monitor(0);
 }
 // END MODBUS FUNCTION BLOCKS
 //************************************************************************

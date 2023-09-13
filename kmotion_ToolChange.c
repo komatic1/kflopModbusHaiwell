@@ -42,7 +42,7 @@
 
 #define TOOL_VAR 9 // Tool changer desired new tool Var
 
-#define CLAMP_TIME 10.0      // seconds to wait for the clamp/unclamp
+#define CLAMP_TIME 9999.0    // seconds to wait for the clamp/unclamp
 #define TOOL_HEIGHT_BIT 1055 // bit to read tool height plate (KONNECT INPUT 31)
 
 #define SAFE_HEIGHT_Z 100        // relative distance in mm to move to clear the top of the tool taper
@@ -65,7 +65,7 @@ int MoveXY(float x, float y, float Speed);
 int MoveZ(float z, float Speed);
 int UnloadTool(int CurrentTool);
 int LoadNewTool(int Tool);
-int EjectTool(void);
+int EjectTool(int CurrentTool);
 
 //-----------------------------------------
 //      Rotary TOOL CHANGING
@@ -80,12 +80,14 @@ main()
 
     int ToolSlot = persist.UserData[TOOL_VAR]; // Requested tool to load (value stored an integer)
 
-    printf("ToolSlot=%d\n", ToolSlot);
+    printf("Command change current tool to Tool = %d\n", persist.UserData[TOOL_VAR]);
     if (DoToolChange(ToolSlot)) // perform Tool Change
     {
         // error, Halt Job
+        printf("error, Halt Job\n");
         DoPC(PC_COMM_HALT);
     }
+    printf("End main ToolChange, finish\n");
 }
 
 // Perform Tool Change.  Return 0=Success, 1=Failure
@@ -188,19 +190,27 @@ int UnloadTool(int CurrentTool)
         return 1;
 
     // - Eject tool
-    if (EjectTool())
+    if (EjectTool(CurrentTool))
         return 1;
 
     return 0; // success
 }
 
 // - Eject tool
-int EjectTool(void)
+int EjectTool(int CurrentTool)
 {
 
-    int index = 132;
+    printf("EjectTool - %d started, debug message\n", CurrentTool);
+    int index = 142;
     int bitNumber = 0;
-    persist.UserData[132] |= (1 << bitNumber); // address in plc Haiwell V832.0
+    persist.UserData[index] |= (1 << bitNumber); // address in plc Haiwell V842.0
+    // number &= ~(1 << bitPositionToReset); //for reset bit
+    printf("142 - %d , debug message\n", persist.UserData[index]);
+
+    int index = 143;
+    int bitNumber = 0;
+    persist.UserData[index] = CurrentTool; // address in plc Haiwell V843
+    printf("143 - %d , debug message\n", persist.UserData[index]);
 
     // - Turn on CLAW_EJECT bit to remove tool from spindle
     // SetBit(CLAW_EJECT);
@@ -281,7 +291,7 @@ int GetCurrentTool(int *ptool)
 
     if (!success) // if still no success ask Operator
     {
-        Answer = InputBox("Tool in Spindle or -1", &value);
+        Answer = InputBox("Enter Tool in Spindle or -1", &value);
         if (Answer)
         {
             printf("Operator Canceled\n");
@@ -305,7 +315,7 @@ int GetCurrentTool(int *ptool)
 
     printf("Current tool = %d\n", tool);
     *ptool = tool; // return result to caller
-    return 0;      // success
+    return 0;      // no success - tool number wrong (stop program)
 }
 
 // save the tool number to KFLOP global Variable and to PC Disk file in case we loose power
@@ -331,7 +341,7 @@ BOOL ToolNumberValid(int tool)
 int MoveXY(float x, float y, float Speed)
 {
     MoveAtVel(AXISX, x * CNT_PER_MM_X, Speed * CNT_PER_MM_X);
-    MoveAtVel(AXISZ, y * CNT_PER_MM_Y, Speed * CNT_PER_MM_Y);
+    MoveAtVel(AXISY, y * CNT_PER_MM_Y, Speed * CNT_PER_MM_Y);
 
     while (!CheckDone(AXISX) || !CheckDone(AXISY))
     {

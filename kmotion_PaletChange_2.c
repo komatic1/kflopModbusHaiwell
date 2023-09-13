@@ -1,12 +1,12 @@
 
-#include "KMotionDef.h"
+#include "/include/KMotionDef.h"
 
 #define TMP 10 // which spare persist to use to transfer data
 #include "KflopToKMotionCNCFunctions.c"
 
 main()
 {
-    printf("Pallet change started 2 !!!!!!!!\n");
+    printf("kmotion_PaletChange_2.c started !!!!!!!!\n");
     persist.UserData[35] = 1;
 
     int Answer;
